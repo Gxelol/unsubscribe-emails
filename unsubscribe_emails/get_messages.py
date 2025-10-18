@@ -1,45 +1,60 @@
 import requests
+import re
 
-from decode import decode_messages   
 from auth import authenticate_gmail
+from utils import check_url
 
 def list_messages():
     # Authenticate and get access token
     creds = authenticate_gmail()
     access_token = creds.token
-    url = 'https://gmail.googleapis.com/gmail/v1/users/{userId}/messages'
-    headers = {
+    url = 'https://gmail.googleapis.com/gmail/v1/users/{userId}/messages/?q=category:promotions'
+    auth_headers = {
         'Authorization': f'Bearer {access_token}',
     }
 
     # Get the list of messages
-    res_messages = requests.get(url.format(userId='me'), headers=headers)
+    res_messages = requests.get(url.format(userId='me'), headers=auth_headers)
     
     # Extract message IDs from the response
     messages = res_messages.json().get("messages", [])
 
     messages_ids = [msg['id'] for msg in messages]
 
-    message = messages_ids[:1]
-    
-    res_message = requests.get(f'https://gmail.googleapis.com/gmail/v1/users/me/messages/{message[0]}', headers=headers)
+    three_first_ids = messages_ids[:3]
 
-    res_message_json = res_message.json()
+    print(f"Three first messages: {three_first_ids}\n\n")
 
-    # Extract the message payload and decode the body
-    payload = res_message_json.get("payload", {})
-    parts = payload.get("parts", [])
+    # Fetch and process each message
+    for id in three_first_ids:
+        
+        res_message = requests.get(f'https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}?format=full', headers=auth_headers)
+        
+        if res_message.status_code != 200:
+            print(f"Erro ao buscar mensagens: {res_message.status_code} - {res_message.text}")
+            return
+        
+        payload = res_message.json().get("payload", {})
+        headers = payload.get("headers", [])
+        list_unsubscribe = [header for header in headers if header["name"].lower() == "list-unsubscribe"]
 
-    # Iterate through parts to find and decode the message body
-    for part in parts:
-        body = part.get("body", {})
-        data = body.get("data", "")
-        encoding = body.get("size", 0)
+        if list_unsubscribe:
+            unsubscribe_header = list_unsubscribe[0]['value']
+            match = re.search(r'<(https?://[^>]+)>', unsubscribe_header)
 
-        # Get content transfer encoding
-        if data and encoding:
-            decoded_body = decode_messages(data, content_transfer_encoding=encoding)
-            print(f'Decoded message body: {decoded_body}')
+            if match:
+                unsubscribe_link = [match.group(1)]
+                is_safe = check_url(unsubscribe_link[0])
+                if is_safe.get("success"):
+                    print(f"Message ID: {id} - Unsubscribe link is safe: {is_safe['success']}\n\n")
+                else:
+                    print(f"Warning: {is_safe['error']}\n\n")
+            else:
+                print("Unsubscribe link not found.")
+        else:
+            print(f"Message ID: {id} has no List-Unsubscribe header.\n\n")
+
+
 
 if __name__ == "__main__":
     list_messages()
