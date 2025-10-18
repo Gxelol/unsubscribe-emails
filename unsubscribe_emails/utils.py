@@ -32,14 +32,3 @@ def extract_domain(url: str) -> str:
     url_parts = urlparse(url)
     domain = url_parts.netloc
     return domain
-
-def check_domain(url: str) -> dict:
-    api_key = "YOUR_VIRUSTOTAL_API_KEY"
-    headers = {
-        "x-apikey": api_key
-    }
-    response = requests.get(f"https://www.virustotal.com/api/v3/domains/{url}", headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return {"error": "Failed to check URL in VirusTotal"}
