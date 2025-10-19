@@ -37,6 +37,6 @@ def get_promotions_messages(headers):
 def fetch_message(id, headers):
     res_message = requests.get(f'https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}?format=full', headers=headers)
     return id, res_message
-
+ 
 if __name__ == "__main__":
     list_messages()
