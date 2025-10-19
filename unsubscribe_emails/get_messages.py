@@ -91,4 +91,4 @@ def handle_unsubscribe_link(id, unsubscribe_link, auth_header):
         logging.error(f"Error: {is_safe['error']}")
 
 if __name__ == "__main__":
-    list_messages() 
+    list_messages()
