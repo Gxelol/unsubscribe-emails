@@ -29,7 +29,6 @@ def list_messages():
                 continue
             process_message(id, res_message, auth_headers)
 
-
 def get_promotions_messages(headers):
     url = 'https://gmail.googleapis.com/gmail/v1/users/{userId}/messages/?q=category:promotions'
     res_messages = requests.get(url.format(userId='me'), headers=headers)
