@@ -92,3 +92,4 @@ def handle_unsubscribe_link(id, unsubscribe_link, auth_header):
 
 if __name__ == "__main__":
     list_messages()
+ 
