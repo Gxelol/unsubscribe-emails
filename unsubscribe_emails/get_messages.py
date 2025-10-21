@@ -2,6 +2,8 @@ import requests
 import re
 import os
 import logging
+import time
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from auth import authenticate_gmail
@@ -29,10 +31,28 @@ def list_messages():
                 continue
             process_message(id, res_message, auth_headers)
 
-def get_promotions_messages(headers):
+def get_promotions_messages(headers, max_results = 100):
     url = 'https://gmail.googleapis.com/gmail/v1/users/{userId}/messages/?q=category:promotions'
-    res_messages = requests.get(url.format(userId='me'), headers=headers)
-    return res_messages.json().get("messages", [])
+    messages = []
+    next_page_token = None
+
+    while True:
+        if next_page_token:
+            res_messages = requests.get(url + f"&pageToken={next_page_token}", headers=headers)
+        else:    
+            res_messages = requests.get(url.format(userId='me'), headers=headers)
+
+        if res_messages.status_code == 200:
+            data = res_messages.json()
+            messages.extend(data.get("messages", []))
+            
+            next_page_token = data.get("nextPageToken")
+            
+            if not next_page_token:
+                break
+        else:
+            logging.error(f"Failed to retrieve messages: {res_messages.status_code}")
+            break
 
 def fetch_message(id, headers):
     res_message = requests.get(f'https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}?format=full', headers=headers)
