@@ -55,23 +55,52 @@ async def get_promotions_messages(headers):
                             messages.extend(data.get("messages", []))
                             next_page_token = data.get("nextPageToken")
                             print(f"Token: {res_messages}")
-                            
-                        if not next_page_token:
-                            return messages
-                else:    
-                    logging.error(f"Failed to retrieve messages: {res_messages.status_code}")
-                    break
+
+                            if not next_page_token:
+                                return messages
+                        else:    
+                            logging.error(f"Failed to retrieve messages: {res_messages.status_code}")
+                            break
+                else:
+                    async with session.get(url.format(userId='me'), headers=headers) as res_messages:
+                        if res_messages.status == 200:
+                            data = await res_messages.json()
+                            messages.extend(data.get("messages", []))
+                            next_page_token = data.get("nextPageToken")
+
+                            if not next_page_token:
+                                return messages
+                        else:
+                            logging.error(f"Failed to retrieve messages: {res_messages.status}")
+                            break
             except Exception as e:
                 logging.error(f"Exception while retrieving messages: {str(e)}")
                 return []
 
-async def fetch_message_async(id, headers):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f'https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}?format=full', headers=headers) as res:
-            return id, res
+async def fetch_message_async(id, headers, retries=3, backoff_factor=2):
+    url = f'https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}?format=full'
+    for attempt in range(retries):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'', headers=headers) as res:
+                    return id, res
+        except aiohttp.ClientConnectionError as e:
+            logging.error(f"Connection error on attempt {attempt+1} for message {id}: {e}")
+        except aiohttp.ClientResponseError as e:
+            logging.error(f"Bad response {e.status} on attempt {attempt+1} for message {id}: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error on attempt {attempt+1} for message {id}: {e}")
+        
+        wait_time = backoff_factor ** attempt
+        logging.info(f"Retrying in {wait_time} seconds...")
+        await asyncio.sleep(wait_time)
+
+    logging.error(f"Failed to fetch message {id} after {retries} attempts.")
+    return id, None
 
 async def process_message(id, res_message, auth_header):
-    payload = await res_message.json().get("payload", {})
+    payload = await res_message.json()
+    payload = payload.get("payload", [])
     headers = payload.get("headers", [])
     list_unsubscribe = get_list_unsubscribe(headers)
 
