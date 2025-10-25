@@ -1,42 +1,25 @@
 import asyncio
 import logging
 
-from unsubscribe_emails.auth import authenticate_gmail
-from unsubscribe_emails.emails import fetch_message_async, get_promotions_messages, log_message_error, process_message
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from unsubscribe_emails.auth import GmailAuthenticator
+from unsubscribe_emails.emails import EmailProcessor
 
 async def main():
-    creds = authenticate_gmail()
+    authenticator = GmailAuthenticator()
+    creds = authenticator.authenticate_gmail()
     access_token = creds.token
     auth_headers = {
         'Authorization': f'Bearer {access_token}',
     }
 
-    emails = await get_promotions_messages(auth_headers)
+    email_processor = EmailProcessor(auth_headers)
+    emails = await email_processor.fetch_emails()
 
     if not emails:
         logging.error("No emails retrieved from Gmail.")
         return
 
-    emails_ids = [email['id'] for email in emails]
-
-    tasks = []
-
-    for id in emails_ids:
-        tasks.append(fetch_message_async(id, auth_headers))
-
-    results = await asyncio.gather(*tasks)
-
-    for id, res_message in results:
-        if res_message is None:
-            logging.warning(f"Skipping message {id} due to timeout or error.")
-            continue
-
-        if res_message.status == 200:
-            await process_message(id, res_message, auth_headers)
-        else:
-            log_message_error(id, res_message)
+    await email_processor.process_messages(emails)
 
 if __name__ == "__main__":
     asyncio.run(main())
